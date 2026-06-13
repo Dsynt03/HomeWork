@@ -8,41 +8,11 @@ local VirtualUser = game:GetService("VirtualUser")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local Lighting = game:GetService("Lighting")
 
--- ==================== PERSISTENT STATE SYSTEM ====================
--- This only saves when you use Server Hop or Rejoin from the GUI
-local SavedState = {
-    Toggles = {},
-    Values = {}
-}
-
-local ShouldSaveState = false
-
-local function SaveCurrentState()
-    if not ShouldSaveState then return end
-
-    SavedState.Toggles = {
-        WalkSpeed = WS_Enabled,
-        JumpPower = JumpPowerEnabled,
-        InfiniteJump = InfJumpEnabled,
-        NoClip = NoClipEnabled,
-        Fly = FlyEnabled,
-        ClickTeleport = CTEnabled,
-        FreeCam = FreeCamEnabled,
-        CustomCamera = CustomCameraEnabled,
-        ESP = ESPEnabled,
-        Fullbright = FBEnabled,
-        XRay = XRayEnabled,
-        AntiAFK = AFKEnabled,
-        InstantPickup = PickupEnabled,
-        AutoClicker = AutoClickerEnabled,
-    }
-
-    SavedState.Values = {
-        WalkSpeedValue = WS_Value,
-        JumpPowerValue = DesiredJumpPower,
-        FlySpeed = FlySpeed,
-        FreeCamSpeed = moveSpeed,
-    }
+-- ==================== DESTROY OLD GUI (Critical for queue_on_teleport) ====================
+local CoreGui = game:GetService("CoreGui")
+if CoreGui:FindFirstChild("PlayerToolsGUI") then
+    CoreGui.PlayerToolsGUI:Destroy()
+    task.wait(0.2)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -462,7 +432,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Jump Power
+-- Jump Power (Multiplier Style - 1x = Default Roblox 50)
 local JumpPowerButton = CreateToggle(MovementContent, "Jump Power: OFF")
 local JumpSliderFrame = Instance.new("Frame", MovementContent)
 JumpSliderFrame.Size = UDim2.new(1, -10, 0, 22)
@@ -477,13 +447,13 @@ Instance.new("UICorner", JumpKnob).CornerRadius = UDim.new(0, 4)
 local JumpValueLabel = Instance.new("TextLabel", JumpSliderFrame)
 JumpValueLabel.Size = UDim2.new(1,0,1,0)
 JumpValueLabel.BackgroundTransparency = 1
-JumpValueLabel.Text = "500"
+JumpValueLabel.Text = "1x"
 JumpValueLabel.TextColor3 = Color3.new(1,1,1)
 JumpValueLabel.TextScaled = true
 JumpValueLabel.Font = Enum.Font.GothamBold
 
 local JumpPowerEnabled = false
-local DesiredJumpPower = 500
+local JumpMultiplier = 1
 local JumpConnection = nil
 
 local function ApplyJump()
@@ -491,8 +461,10 @@ local function ApplyJump()
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
     if not hum then return end
-    hum.JumpPower = DesiredJumpPower
-    hum.JumpHeight = 7 + (DesiredJumpPower / 10000) * 300
+
+    local power = 50 * JumpMultiplier     -- 1x = 50 (default), 20000x = 1,000,000
+    hum.JumpPower = power
+    hum.JumpHeight = 7 + (power / 10000) * 300
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -530,22 +502,50 @@ RunService.RenderStepped:Connect(function()
         local sx = JumpSliderFrame.AbsolutePosition.X
         local sw = JumpSliderFrame.AbsoluteSize.X
         local p = math.clamp((mouseX - sx) / sw, 0, 1)
-        DesiredJumpPower = math.floor(50 + p * 9950)
-        JumpKnob.Position = UDim2.new(p, 0, 0, 0)
-        JumpValueLabel.Text = tostring(DesiredJumpPower)
+
+        -- Snap to whole numbers
+        local steps = 20000          -- 20000x = 1,000,000 jump power
+        JumpMultiplier = math.floor(1 + p * (steps - 1) + 0.5)
+        JumpMultiplier = math.clamp(JumpMultiplier, 1, 20000)
+
+        local percent = (JumpMultiplier - 1) / (steps - 1)
+        JumpKnob.Position = UDim2.new(percent, 0, 0, 0)
+        JumpValueLabel.Text = JumpMultiplier .. "x"
+
         if JumpPowerEnabled then ApplyJump() end
     end
 end)
 
--- ==================== INFINITE JUMP (Improved) ====================
+-- Set initial slider position
+JumpKnob.Position = UDim2.new(0, 0, 0, 0)
+JumpValueLabel.Text = "1x"
+
+-- ==================== INFINITE JUMP (With Delay) ====================
 local InfJumpButton = CreateToggle(MovementContent, "Infinite Jump: OFF")
 local InfJumpEnabled = false
 
+local lastJumpTime = 0
+local jumpDelay = 0.18          -- Change this number to adjust delay (in seconds)
+
 UserInputService.JumpRequest:Connect(function()
     if InfJumpEnabled and LocalPlayer.Character then
-        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-        if hum then
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        local currentTime = tick()
+        
+        -- Only allow jump if enough time has passed since last jump
+        if currentTime - lastJumpTime >= jumpDelay then
+            lastJumpTime = currentTime
+            
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then
+                -- If Jump Power is also enabled, apply the custom height
+                if JumpPowerEnabled then
+                    local power = 500 * JumpMultiplier
+                    hum.JumpPower = power
+                    hum.JumpHeight = 7 + (power / 10000) * 300
+                end
+                
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
         end
     end
 end)
@@ -560,6 +560,113 @@ InfJumpButton.MouseButton1Click:Connect(function()
         InfJumpButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
     end
 end)
+
+-- ==================== AIR GRAVITY (New Feature) ====================
+-- Reduces gravity while the player is in the air (great with Jump Power + Infinite Jump)
+
+local AirGravityButton = CreateToggle(MovementContent, "Air Gravity: OFF")
+local AirGravitySliderFrame = Instance.new("Frame", MovementContent)
+AirGravitySliderFrame.Size = UDim2.new(1, -10, 0, 22)
+AirGravitySliderFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+Instance.new("UICorner", AirGravitySliderFrame).CornerRadius = UDim.new(0, 4)
+
+local AirGravityKnob = Instance.new("Frame", AirGravitySliderFrame)
+AirGravityKnob.Size = UDim2.new(0, 16, 1, 0)
+AirGravityKnob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+Instance.new("UICorner", AirGravityKnob).CornerRadius = UDim.new(0, 4)
+
+local AirGravityVal = Instance.new("TextLabel", AirGravitySliderFrame)
+AirGravityVal.Size = UDim2.new(1,0,1,0)
+AirGravityVal.BackgroundTransparency = 1
+AirGravityVal.Text = "0.3x"
+AirGravityVal.TextColor3 = Color3.new(1,1,1)
+AirGravityVal.TextScaled = true
+AirGravityVal.Font = Enum.Font.GothamBold
+
+local AirGravityEnabled = false
+local AirGravityMultiplier = 0.3          -- Default = 0.3x gravity while in air
+local OriginalGravity = workspace.Gravity
+local AirGravityConnection = nil
+
+local function ApplyAirGravity()
+    if not LocalPlayer.Character then return end
+    local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if not hum then return end
+
+    -- Check if player is in the air
+    local state = hum:GetState()
+    local isInAir = state == Enum.HumanoidStateType.Jumping 
+                 or state == Enum.HumanoidStateType.Freefall
+
+    if isInAir then
+        workspace.Gravity = 196.2 * AirGravityMultiplier
+    else
+        workspace.Gravity = OriginalGravity
+    end
+end
+
+AirGravityButton.MouseButton1Click:Connect(function()
+    AirGravityEnabled = not AirGravityEnabled
+
+    if AirGravityEnabled then
+        AirGravityButton.Text = "Air Gravity: ON"
+        AirGravityButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
+
+        if not AirGravityConnection then
+            AirGravityConnection = RunService.RenderStepped:Connect(function()
+                if AirGravityEnabled then
+                    ApplyAirGravity()
+                end
+            end)
+        end
+    else
+        AirGravityButton.Text = "Air Gravity: OFF"
+        AirGravityButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
+
+        if AirGravityConnection then
+            AirGravityConnection:Disconnect()
+            AirGravityConnection = nil
+        end
+
+        -- Restore normal gravity
+        workspace.Gravity = OriginalGravity
+    end
+end)
+
+-- Slider Logic
+local draggingAirGravity = false
+AirGravityKnob.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingAirGravity = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingAirGravity = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if draggingAirGravity then
+        local mouseX = UserInputService:GetMouseLocation().X
+        local sx = AirGravitySliderFrame.AbsolutePosition.X
+        local sw = AirGravitySliderFrame.AbsoluteSize.X
+        local p = math.clamp((mouseX - sx) / sw, 0, 1)
+
+        -- 0.05x (very low) to 1.0x (normal)
+        AirGravityMultiplier = 0.05 + (p * 0.95)
+        AirGravityMultiplier = math.clamp(AirGravityMultiplier, 0.05, 1)
+
+        local percent = (AirGravityMultiplier - 0.05) / 0.95
+        AirGravityKnob.Position = UDim2.new(percent, 0, 0, 0)
+        AirGravityVal.Text = string.format("%.2fx", AirGravityMultiplier)
+    end
+end)
+
+-- Set initial slider position
+AirGravityKnob.Position = UDim2.new(0.26, 0, 0, 0)   -- ~0.3x
+AirGravityVal.Text = "0.30x"
 
 -- ==================== NO CLIP (Improved - More Aggressive) ====================
 local NoClipButton = CreateToggle(MovementContent, "No Clip: OFF")
@@ -608,7 +715,7 @@ NoClipButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== FLY (Aggressive Version for Stubborn Games) ====================
+-- Fly (Multiplier Style - Now up to 10,000x)
 local FlyButton = CreateToggle(MovementContent, "Fly: OFF")
 local FlySlider = Instance.new("Frame", MovementContent)
 FlySlider.Size = UDim2.new(1, -10, 0, 22)
@@ -623,13 +730,14 @@ Instance.new("UICorner", FlyKnob).CornerRadius = UDim.new(0,4)
 local FlyVal = Instance.new("TextLabel", FlySlider)
 FlyVal.Size = UDim2.new(1,0,1,0)
 FlyVal.BackgroundTransparency = 1
-FlyVal.Text = "100"
+FlyVal.Text = "1x"
 FlyVal.TextColor3 = Color3.new(1,1,1)
 FlyVal.TextScaled = true
 FlyVal.Font = Enum.Font.GothamBold
 
 local FlyEnabled = false
-local FlySpeed = 100
+local FlyMultiplier = 1
+local FlyBaseSpeed = 50
 local FlyConn = nil
 
 FlyButton.MouseButton1Click:Connect(function()
@@ -657,10 +765,11 @@ FlyButton.MouseButton1Click:Connect(function()
                 if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0,1,0) end
                 if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection -= Vector3.new(0,1,0) end
 
+                local currentSpeed = FlyBaseSpeed * FlyMultiplier
+
                 if moveDirection.Magnitude > 0 then
-                    hrp.AssemblyLinearVelocity = moveDirection.Unit * FlySpeed
+                    hrp.AssemblyLinearVelocity = moveDirection.Unit * currentSpeed
                 else
-                    -- Hover in place instead of falling (small upward velocity to counter gravity)
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0.5, 0)
                 end
             end)
@@ -674,7 +783,6 @@ FlyButton.MouseButton1Click:Connect(function()
             FlyConn = nil
         end
 
-        -- Reset velocity when turning off
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
             char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
@@ -682,7 +790,7 @@ FlyButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Fly Speed Slider
+-- Fly Speed Slider (Now supports up to 10,000x)
 local dragFly = false
 FlyKnob.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragFly = true end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragFly = false end end)
@@ -693,11 +801,21 @@ RunService.RenderStepped:Connect(function()
         local sx = FlySlider.AbsolutePosition.X
         local sw = FlySlider.AbsoluteSize.X
         local p = math.clamp((mx - sx) / sw, 0, 1)
-        FlySpeed = math.floor(50 + p * 450)
-        FlyKnob.Position = UDim2.new(p, 0, 0, 0)
-        FlyVal.Text = tostring(FlySpeed)
+
+        -- Changed from 1000 to 10,000
+        local steps = 10000
+        FlyMultiplier = math.floor(1 + p * (steps - 1) + 0.5)
+        FlyMultiplier = math.clamp(FlyMultiplier, 1, 10000)
+
+        local percent = (FlyMultiplier - 1) / (steps - 1)
+        FlyKnob.Position = UDim2.new(percent, 0, 0, 0)
+        FlyVal.Text = FlyMultiplier .. "x"
     end
 end)
+
+-- Set initial slider position
+FlyKnob.Position = UDim2.new(0, 0, 0, 0)
+FlyVal.Text = "1x"
 
 -- ==================== CLICK TELEPORT (Improved) ====================
 local CTButton = CreateToggle(MovementContent, "Click Teleport: OFF")
@@ -876,7 +994,7 @@ FreeCamButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- FreeCam Speed Slider
+-- FreeCam Speed Slider (Multiplier Style - Max 1000x)
 local draggingFreeCamSpeed = false
 FreeCamKnob.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingFreeCamSpeed = true end end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingFreeCamSpeed = false end end)
@@ -886,18 +1004,26 @@ RunService.RenderStepped:Connect(function()
         local mouseX = UserInputService:GetMouseLocation().X
         local sliderX = FreeCamSliderFrame.AbsolutePosition.X
         local sliderWidth = FreeCamSliderFrame.AbsoluteSize.X
-        local percent = math.clamp((mouseX - sliderX) / sliderWidth, 0, 1)
-        moveSpeed = math.floor(10 + percent * 290)
+        local p = math.clamp((mouseX - sliderX) / sliderWidth, 0, 1)
+
+        -- Snap to whole numbers (1x to 1000x)
+        local steps = 1000
+        local FreeCamMultiplier = math.floor(1 + p * (steps - 1) + 0.5)
+        FreeCamMultiplier = math.clamp(FreeCamMultiplier, 1, 1000)
+
+        moveSpeed = 10 * FreeCamMultiplier     -- 1000x = 10,000 speed
+
+        local percent = (FreeCamMultiplier - 1) / (steps - 1)
         FreeCamKnob.Position = UDim2.new(percent, 0, 0, 0)
-        FreeCamVal.Text = tostring(moveSpeed)
+        FreeCamVal.Text = FreeCamMultiplier .. "x"
     end
 end)
 
-local initialFreeCamPercent = (moveSpeed - 10) / 290
-FreeCamKnob.Position = UDim2.new(initialFreeCamPercent, 0, 0, 0)
-FreeCamVal.Text = tostring(moveSpeed)
+-- Set initial slider position (1x)
+FreeCamKnob.Position = UDim2.new(0, 0, 0, 0)
+FreeCamVal.Text = "1x"
 
--- ==================== CUSTOM CAMERA (Default Roblox Recreation + Telescope) ====================
+-- ==================== CUSTOM CAMERA (Default Roblox Recreation + Telescope + Avatar Visibility Fix) ====================
 local CustomCameraButton = CreateToggle(CameraContent, "Custom Camera: OFF")
 local CustomCameraEnabled = false
 local CustomCameraConnection = nil
@@ -930,6 +1056,16 @@ local function GetFocusPoint()
     return Vector3.new()
 end
 
+local function ForceCharacterVisible()
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.LocalTransparencyModifier = 0
+        end
+    end
+end
+
 local function UpdateCustomCamera()
     local character = LocalPlayer.Character
     if not character then return end
@@ -937,7 +1073,7 @@ local function UpdateCustomCamera()
     local focusPoint = GetFocusPoint()
     if focusPoint == Vector3.new() then return end
 
-    IsFirstPerson = CurrentZoom <= 1.2
+    IsFirstPerson = CurrentZoom <= 2.0   -- Slightly raised threshold
     local cam = workspace.CurrentCamera
 
     if IsFirstPerson and TelescopeActive then
@@ -967,7 +1103,7 @@ local function UpdateCustomCamera()
         end
 
     else
-        -- Third Person (No Collisions)
+        -- Third Person (No Collisions) + Force Avatar Visible
         local rotation = CFrame.Angles(0, Yaw, 0) * CFrame.Angles(Pitch, 0, 0)
         local offset = rotation * Vector3.new(0, 0, CurrentZoom)
         local desiredPosition = focusPoint + offset
@@ -982,6 +1118,9 @@ local function UpdateCustomCamera()
 
         cam.CFrame = CFrame.new(CurrentCamPosition, CurrentLookAt)
         cam.FieldOfView = 70
+
+        -- Key fix: Force avatar to stay visible when zooming in from far away
+        ForceCharacterVisible()
 
         if IsOrbiting then
             if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCurrentPosition then
@@ -1029,6 +1168,15 @@ local function DisableCustomCamera()
 
     if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    end
+
+    -- Reset visibility when turning off
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.LocalTransparencyModifier = 0
+            end
+        end
     end
 end
 
@@ -1250,11 +1398,62 @@ Players.PlayerRemoving:Connect(function(player)
     RemoveESP(player)
 end)
 
--- ==================== FULLBRIGHT (Improved) ====================
+-- ==================== FULLBRIGHT (Improved with Brightness Slider) ====================
 local FBButton = CreateToggle(VisualContent, "Fullbright: OFF")
 local FBEnabled = false
 local FBOriginal = {}
 
+-- Brightness Slider
+local FBSliderFrame = Instance.new("Frame", VisualContent)
+FBSliderFrame.Size = UDim2.new(1, -10, 0, 22)
+FBSliderFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+Instance.new("UICorner", FBSliderFrame).CornerRadius = UDim.new(0, 4)
+
+local FBKnob = Instance.new("Frame", FBSliderFrame)
+FBKnob.Size = UDim2.new(0, 16, 1, 0)
+FBKnob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+Instance.new("UICorner", FBKnob).CornerRadius = UDim.new(0, 4)
+
+local FBVal = Instance.new("TextLabel", FBSliderFrame)
+FBVal.Size = UDim2.new(1,0,1,0)
+FBVal.BackgroundTransparency = 1
+FBVal.Text = "2.0"
+FBVal.TextColor3 = Color3.new(1,1,1)
+FBVal.TextScaled = true
+FBVal.Font = Enum.Font.GothamBold
+
+local FB_Brightness = 2.0
+local draggingFB = false
+
+-- Update brightness live when slider is moved (only if Fullbright is on)
+RunService.RenderStepped:Connect(function()
+    if draggingFB and FBEnabled then
+        local mx = UserInputService:GetMouseLocation().X
+        local sx = FBSliderFrame.AbsolutePosition.X
+        local sw = FBSliderFrame.AbsoluteSize.X
+        local p = math.clamp((mx - sx) / sw, 0, 1)
+        
+        FB_Brightness = 0.5 + p * 4.5          -- Range: 0.5 to 5.0
+        FBKnob.Position = UDim2.new(p, 0, 0, 0)
+        FBVal.Text = string.format("%.1f", FB_Brightness)
+        
+        Lighting.Brightness = FB_Brightness
+    end
+end)
+
+FBKnob.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingFB = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingFB = false
+    end
+end)
+
+-- Fullbright Toggle
 FBButton.MouseButton1Click:Connect(function()
     FBEnabled = not FBEnabled
 
@@ -1275,7 +1474,7 @@ FBButton.MouseButton1Click:Connect(function()
             }
         end
 
-        Lighting.Brightness = 2
+        Lighting.Brightness = FB_Brightness
         Lighting.Ambient = Color3.new(1,1,1)
         Lighting.OutdoorAmbient = Color3.new(1,1,1)
         Lighting.ClockTime = 12
@@ -1295,6 +1494,11 @@ FBButton.MouseButton1Click:Connect(function()
         end
     end
 end)
+
+-- Set initial slider position
+local initialFBPercent = (FB_Brightness - 0.5) / 4.5
+FBKnob.Position = UDim2.new(initialFBPercent, 0, 0, 0)
+FBVal.Text = string.format("%.1f", FB_Brightness)
 
 -- ==================== X-RAY / WALLHACK (Improved) ====================
 local XRayButton = CreateToggle(VisualContent, "X-Ray: OFF")
@@ -1602,21 +1806,37 @@ SpectateButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Server Hop (Saves state only when clicked from GUI)
+-- ==================== SERVER HOP & REJOIN (Unlimited) ====================
+
+-- Server Hop Button
 local ServerHopButton = CreateToggle(UtilityContent, "SERVER HOP")
 ServerHopButton.BackgroundColor3 = Color3.fromRGB(200, 100, 60)
 
 ServerHopButton.MouseButton1Click:Connect(function()
-    ShouldSaveState = true
-    SaveCurrentState()
-
     ServerHopButton.Text = "HOPPING..."
+    ServerHopButton.Active = false
+
+    if queue_on_teleport then
+        queue_on_teleport([[
+            task.wait(5)
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+
+            if queue_on_teleport then
+                queue_on_teleport([[
+                    task.wait(5)
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+                ]])
+            end
+        ]])
+    end
 
     local HttpService = game:GetService("HttpService")
     local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+        return HttpService:JSONDecode(game:HttpGet(
+            "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        ))
     end)
-    
+
     if success and result and result.data then
         local servers = {}
         for _, server in pairs(result.data) do
@@ -1624,53 +1844,45 @@ ServerHopButton.MouseButton1Click:Connect(function()
                 table.insert(servers, server.id)
             end
         end
-        
+
         if #servers > 0 then
-            local randomServer = servers[math.random(1, #servers)]
-
-            queue_on_teleport([[
-                loadstring(game:HttpGet("YOUR_RAW_SCRIPT_URL_HERE"))()
-                
-                task.wait(3)
-                if _G.ReapplySavedState then
-                    _G.ReapplySavedState()
-                end
-            ]])
-
+            local randomServer = servers[math.random(#servers)]
             TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer, LocalPlayer)
         else
             ServerHopButton.Text = "NO SERVERS"
             task.wait(1.5)
             ServerHopButton.Text = "SERVER HOP"
-            ShouldSaveState = false
+            ServerHopButton.Active = true
         end
     else
         ServerHopButton.Text = "FAILED"
         task.wait(1.5)
         ServerHopButton.Text = "SERVER HOP"
-        ShouldSaveState = false
+        ServerHopButton.Active = true
     end
 end)
 
--- Rejoin Server (Saves state only when clicked from GUI)
+-- Rejoin Button
 local RejoinButton = CreateToggle(UtilityContent, "REJOIN SERVER")
 RejoinButton.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
 
 RejoinButton.MouseButton1Click:Connect(function()
-    ShouldSaveState = true
-    SaveCurrentState()
-
     RejoinButton.Text = "REJOINING..."
     RejoinButton.Active = false
 
-    queue_on_teleport([[
-        loadstring(game:HttpGet("YOUR_RAW_SCRIPT_URL_HERE"))()
-        
-        task.wait(3)
-        if _G.ReapplySavedState then
-            _G.ReapplySavedState()
-        end
-    ]])
+    if queue_on_teleport then
+        queue_on_teleport([[
+            task.wait(5)
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+
+            if queue_on_teleport then
+                queue_on_teleport([[
+                    task.wait(5)
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+                ]])
+            end
+        ]])
+    end
 
     local success = pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
@@ -1681,7 +1893,6 @@ RejoinButton.MouseButton1Click:Connect(function()
         task.wait(1.5)
         RejoinButton.Text = "REJOIN SERVER"
         RejoinButton.Active = true
-        ShouldSaveState = false
     end
 end)
 
@@ -1715,17 +1926,15 @@ AFKButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== INSTANT PICKUP (Improved) ====================
+-- ==================== INSTANT PICKUP (Improved - Performance Fixed) ====================
 local PickupButton = CreateToggle(UtilityContent, "Instant Pickup: OFF")
 local PickupEnabled = false
 local PickupConnection = nil
 
-local function ForceInstantPrompts()
-    for _, prompt in pairs(workspace:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            prompt.HoldDuration = 0
-            prompt.RequiresLineOfSight = false
-        end
+local function MakePromptInstant(prompt)
+    if prompt:IsA("ProximityPrompt") then
+        prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
     end
 end
 
@@ -1736,17 +1945,19 @@ PickupButton.MouseButton1Click:Connect(function()
         PickupButton.Text = "Instant Pickup: ON"
         PickupButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
 
-        -- Constantly force prompts to be instant
+        -- Apply to all existing prompts once
+        for _, obj in pairs(workspace:GetDescendants()) do
+            MakePromptInstant(obj)
+        end
+
+        -- Only update new prompts when they are added (much lighter than every frame)
         if not PickupConnection then
-            PickupConnection = RunService.Heartbeat:Connect(function()
+            PickupConnection = workspace.DescendantAdded:Connect(function(obj)
                 if PickupEnabled then
-                    ForceInstantPrompts()
+                    MakePromptInstant(obj)
                 end
             end)
         end
-
-        -- Also apply immediately to existing prompts
-        ForceInstantPrompts()
 
     else
         PickupButton.Text = "Instant Pickup: OFF"
@@ -1897,174 +2108,4 @@ function ResetAllFeatures()
             for k, v in pairs(FBOriginal) do Lighting[k] = v end
         end
     end)
-end
-
--- ==================== RE-APPLY SAVED STATE AFTER TELEPORT ====================
-_G.ReapplySavedState = function()
-    task.wait(2)
-
-    -- WalkSpeed
-    if SavedState.Toggles.WalkSpeed then
-        WS_Enabled = true
-        WalkButton.Text = "WalkSpeed: ON"
-        WalkButton.BackgroundColor3 = Color3.fromRGB(0,170,80)
-        if not WS_Conn then
-            WS_Conn = RunService.RenderStepped:Connect(ApplyWalkSpeed)
-        end
-    end
-
-    -- Jump Power
-    if SavedState.Toggles.JumpPower then
-        JumpPowerEnabled = true
-        JumpPowerButton.Text = "Jump Power: ON"
-        JumpPowerButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        if not JumpConnection then
-            JumpConnection = RunService.RenderStepped:Connect(ApplyJump)
-        end
-        ApplyJump()
-    end
-
-    -- Infinite Jump
-    if SavedState.Toggles.InfiniteJump then
-        InfJumpEnabled = true
-        InfJumpButton.Text = "Infinite Jump: ON"
-        InfJumpButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-    end
-
-    -- No Clip
-    if SavedState.Toggles.NoClip then
-        NoClipEnabled = true
-        NoClipButton.Text = "No Clip: ON"
-        NoClipButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        EnableNoClip()
-    end
-
-    -- Fly
-    if SavedState.Toggles.Fly then
-        FlyEnabled = true
-        FlyButton.Text = "Fly: ON"
-        FlyButton.BackgroundColor3 = Color3.fromRGB(0,170,80)
-        if not FlyConn then
-            FlyConn = RunService.RenderStepped:Connect(function()
-                if not FlyEnabled then return end
-                local char = LocalPlayer.Character
-                if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-                local hrp = char.HumanoidRootPart
-                local cam = workspace.CurrentCamera
-
-                local moveDirection = Vector3.new(0,0,0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0,1,0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection -= Vector3.new(0,1,0) end
-
-                if moveDirection.Magnitude > 0 then
-                    hrp.AssemblyLinearVelocity = moveDirection.Unit * FlySpeed
-                else
-                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0.5, 0)
-                end
-            end)
-        end
-    end
-
-    -- ESP
-    if SavedState.Toggles.ESP then
-        ESPEnabled = true
-        ESPButton.Text = "ESP: ON"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        for _, p in ipairs(Players:GetPlayers()) do CreateESP(p) end
-        if not ESPUpdateConnection then
-            ESPUpdateConnection = RunService.Heartbeat:Connect(UpdateESP)
-        end
-    end
-
-    -- Fullbright
-    if SavedState.Toggles.Fullbright then
-        FBEnabled = true
-        FBButton.Text = "Fullbright: ON"
-        FBButton.BackgroundColor3 = Color3.fromRGB(0,170,80)
-        if next(FBOriginal) == nil then
-            FBOriginal = {
-                Brightness = Lighting.Brightness, Ambient = Lighting.Ambient,
-                OutdoorAmbient = Lighting.OutdoorAmbient, ClockTime = Lighting.ClockTime,
-                FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart,
-                GlobalShadows = Lighting.GlobalShadows, ShadowSoftness = Lighting.ShadowSoftness
-            }
-        end
-        Lighting.Brightness = 2
-        Lighting.Ambient = Color3.new(1,1,1)
-        Lighting.OutdoorAmbient = Color3.new(1,1,1)
-        Lighting.ClockTime = 12
-        Lighting.FogEnd = 100000
-        Lighting.FogStart = 0
-        Lighting.GlobalShadows = false
-        Lighting.ShadowSoftness = 0
-    end
-
-    -- X-Ray
-    if SavedState.Toggles.XRay then
-        XRayEnabled = true
-        XRayButton.Text = "X-Ray: ON"
-        XRayButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        if not XRayConnection then
-            XRayConnection = RunService.Heartbeat:Connect(function()
-                if XRayEnabled then ApplyXRay() end
-            end)
-        end
-        ApplyXRay()
-    end
-
-    -- Anti-AFK
-    if SavedState.Toggles.AntiAFK then
-        AFKEnabled = true
-        AFKButton.Text = "Anti-AFK: ON"
-        AFKButton.BackgroundColor3 = Color3.fromRGB(0,170,80)
-        if not AFKConn then
-            AFKConn = LocalPlayer.Idled:Connect(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-                task.wait(1)
-            end)
-        end
-    end
-
-    -- Instant Pickup
-    if SavedState.Toggles.InstantPickup then
-        PickupEnabled = true
-        PickupButton.Text = "Instant Pickup: ON"
-        PickupButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        if not PickupConnection then
-            PickupConnection = RunService.Heartbeat:Connect(function()
-                if PickupEnabled then ForceInstantPrompts() end
-            end)
-        end
-        ForceInstantPrompts()
-    end
-
-    -- Auto Clicker
-    if SavedState.Toggles.AutoClicker then
-        StartClicker()
-    end
-
-    -- Restore slider values
-    if SavedState.Values.WalkSpeedValue then
-        WS_Value = SavedState.Values.WalkSpeedValue
-        WalkVal.Text = tostring(WS_Value)
-    end
-    if SavedState.Values.JumpPowerValue then
-        DesiredJumpPower = SavedState.Values.JumpPowerValue
-        JumpValueLabel.Text = tostring(DesiredJumpPower)
-    end
-    if SavedState.Values.FlySpeed then
-        FlySpeed = SavedState.Values.FlySpeed
-        FlyVal.Text = tostring(FlySpeed)
-    end
-    if SavedState.Values.FreeCamSpeed then
-        moveSpeed = SavedState.Values.FreeCamSpeed
-        FreeCamVal.Text = tostring(moveSpeed)
-    end
-
-    print("✅ Previous toggles restored after teleport")
 end
