@@ -8,6 +8,14 @@ local VirtualUser = game:GetService("VirtualUser")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local Lighting = game:GetService("Lighting")
 
+-- ==================== AUTO REQUEUE (Always Reappears) ====================
+if queue_on_teleport then
+    queue_on_teleport([[
+        task.wait(8)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+    ]])
+end
+
 -- ==================== DESTROY OLD GUI (Critical for queue_on_teleport) ====================
 local CoreGui = game:GetService("CoreGui")
 if CoreGui:FindFirstChild("PlayerToolsGUI") then
@@ -1806,39 +1814,19 @@ SpectateButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== SERVER HOP & REJOIN (Self-Requeuing - Only When Button Pressed) ====================
-
-local ScriptURL = "https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"
-
--- Server Hop Button
+-- Server Hop (Saves state only when clicked from GUI)
 local ServerHopButton = CreateToggle(UtilityContent, "SERVER HOP")
 ServerHopButton.BackgroundColor3 = Color3.fromRGB(200, 100, 60)
 
 ServerHopButton.MouseButton1Click:Connect(function()
+
     ServerHopButton.Text = "HOPPING..."
-    ServerHopButton.Active = false
-
-    if queue_on_teleport then
-        queue_on_teleport([[
-            task.wait(6)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-
-            if queue_on_teleport then
-                queue_on_teleport([[
-                    task.wait(6)
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-                ]])
-            end
-        ]])
-    end
 
     local HttpService = game:GetService("HttpService")
     local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(
-            "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-        ))
+        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
     end)
-
+    
     if success and result and result.data then
         local servers = {}
         for _, server in pairs(result.data) do
@@ -1846,45 +1834,43 @@ ServerHopButton.MouseButton1Click:Connect(function()
                 table.insert(servers, server.id)
             end
         end
-
+        
         if #servers > 0 then
-            local randomServer = servers[math.random(#servers)]
+            local randomServer = servers[math.random(1, #servers)]
+
+            queue_on_teleport([[
+    task.wait(10)
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+]])
+
             TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer, LocalPlayer)
         else
             ServerHopButton.Text = "NO SERVERS"
             task.wait(1.5)
             ServerHopButton.Text = "SERVER HOP"
-            ServerHopButton.Active = true
+            ShouldSaveState = false
         end
     else
         ServerHopButton.Text = "FAILED"
         task.wait(1.5)
         ServerHopButton.Text = "SERVER HOP"
-        ServerHopButton.Active = true
+        ShouldSaveState = false
     end
 end)
 
--- Rejoin Button
+-- Rejoin Server (Saves state only when clicked from GUI)
 local RejoinButton = CreateToggle(UtilityContent, "REJOIN SERVER")
 RejoinButton.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
 
 RejoinButton.MouseButton1Click:Connect(function()
+
     RejoinButton.Text = "REJOINING..."
     RejoinButton.Active = false
 
-    if queue_on_teleport then
-        queue_on_teleport([[
-            task.wait(6)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-
-            if queue_on_teleport then
-                queue_on_teleport([[
-                    task.wait(6)
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-                ]])
-            end
-        ]])
-    end
+    queue_on_teleport([[
+    task.wait(10)
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+]])
 
     local success = pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
@@ -1895,6 +1881,7 @@ RejoinButton.MouseButton1Click:Connect(function()
         task.wait(1.5)
         RejoinButton.Text = "REJOIN SERVER"
         RejoinButton.Active = true
+        ShouldSaveState = false
     end
 end)
 
