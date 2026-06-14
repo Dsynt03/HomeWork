@@ -1838,11 +1838,6 @@ ServerHopButton.MouseButton1Click:Connect(function()
         if #servers > 0 then
             local randomServer = servers[math.random(1, #servers)]
 
-            queue_on_teleport([[
-    task.wait(10)
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-]])
-
             TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer, LocalPlayer)
         else
             ServerHopButton.Text = "NO SERVERS"
@@ -1866,11 +1861,6 @@ RejoinButton.MouseButton1Click:Connect(function()
 
     RejoinButton.Text = "REJOINING..."
     RejoinButton.Active = false
-
-    queue_on_teleport([[
-    task.wait(10)
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
-]])
 
     local success = pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
