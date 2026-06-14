@@ -23,191 +23,67 @@ if CoreGui:FindFirstChild("PlayerToolsGUI") then
     task.wait(0.2)
 end
 
+-- ==================== SCREEN GUI ====================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PlayerToolsGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- ==================== AUTO CLICKER INDICATOR ====================
-local ACIndicator = Instance.new("TextLabel")
-ACIndicator.Name = "ACIndicator"
-ACIndicator.Size = UDim2.new(0, 80, 0, 28)
-ACIndicator.Position = UDim2.new(0.5, -40, 0, 8)   -- Default position (can be anything)
-ACIndicator.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-ACIndicator.Text = "AC: ON"
-ACIndicator.TextColor3 = Color3.new(1, 1, 1)
-ACIndicator.TextScaled = true
-ACIndicator.Font = Enum.Font.GothamBold
-ACIndicator.Visible = false
-ACIndicator.Parent = ScreenGui
-
-local ACIndicatorCorner = Instance.new("UICorner")
-ACIndicatorCorner.CornerRadius = UDim.new(0, 6)
-ACIndicatorCorner.Parent = ACIndicator
-
--- Make "AC: ON" follow the mouse cursor (only when visible)
-RunService.RenderStepped:Connect(function()
-    if ACIndicator and ACIndicator.Visible then
-        local mousePos = UserInputService:GetMouseLocation()
-        -- Position directly under the cursor (close but not touching)
-        ACIndicator.Position = UDim2.new(0, mousePos.X - 35, 0, mousePos.Y + -35)
-    end
-end)
-
-
-
--- Main Window
+-- ==================== MAIN FRAME ====================
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 420)
+MainFrame.Size = UDim2.new(0, 250, 0, 480)
 MainFrame.Position = UDim2.new(0, 20, 0, 20)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.CornerRadius = UDim.new(0, 10)
 MainCorner.Parent = MainFrame
 
--- ==================== RESIZE HANDLES (Invisible + Outside Corners) ====================
-local ResizeHandles = {}
-local MIN_SIZE = Vector2.new(180, 300)
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(35, 35, 40)
+MainStroke.Thickness = 1
+MainStroke.Parent = MainFrame
 
-local function CreateResizeHandle(corner)
-    local handle = Instance.new("Frame")
-    handle.Size = UDim2.new(0, 18, 0, 18)           -- Slightly bigger hitbox
-    handle.BackgroundTransparency = 1               -- Invisible
-    handle.BorderSizePixel = 0
-    handle.ZIndex = 50                              -- High ZIndex so it stays on top
-    handle.Parent = MainFrame
-
-    if corner == "TopLeft" then
-        handle.Position = UDim2.new(0, -6, 0, -6)   -- Outside top-left
-        handle.AnchorPoint = Vector2.new(0, 0)
-    elseif corner == "TopRight" then
-        handle.Position = UDim2.new(1, 6, 0, -6)    -- Outside top-right (avoids red X)
-        handle.AnchorPoint = Vector2.new(1, 0)
-    elseif corner == "BottomLeft" then
-        handle.Position = UDim2.new(0, -6, 1, 6)    -- Outside bottom-left
-        handle.AnchorPoint = Vector2.new(0, 1)
-    elseif corner == "BottomRight" then
-        handle.Position = UDim2.new(1, 6, 1, 6)     -- Outside bottom-right
-        handle.AnchorPoint = Vector2.new(1, 1)
-    end
-
-    return handle
-end
-
--- Create all 4 handles
-ResizeHandles.TopLeft = CreateResizeHandle("TopLeft")
-ResizeHandles.TopRight = CreateResizeHandle("TopRight")
-ResizeHandles.BottomLeft = CreateResizeHandle("BottomLeft")
-ResizeHandles.BottomRight = CreateResizeHandle("BottomRight")
-
--- ==================== RESIZE LOGIC (Keep this part the same) ====================
-local resizing = false
-local resizeCorner = nil
-local startMousePos, startSize, startPosition
-
-for corner, handle in pairs(ResizeHandles) do
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            resizing = true
-            resizeCorner = corner
-            startMousePos = UserInputService:GetMouseLocation()
-            startSize = MainFrame.AbsoluteSize
-            startPosition = MainFrame.Position
-        end
-    end)
-end
-
-UserInputService.InputChanged:Connect(function(input)
-    if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local mousePos = UserInputService:GetMouseLocation()
-        local delta = mousePos - startMousePos
-
-        local newSize = startSize
-        local newPos = startPosition
-
-        if resizeCorner == "BottomRight" then
-            newSize = Vector2.new(
-                math.max(MIN_SIZE.X, startSize.X + delta.X),
-                math.max(MIN_SIZE.Y, startSize.Y + delta.Y)
-            )
-        elseif resizeCorner == "BottomLeft" then
-            newSize = Vector2.new(
-                math.max(MIN_SIZE.X, startSize.X - delta.X),
-                math.max(MIN_SIZE.Y, startSize.Y + delta.Y)
-            )
-            newPos = UDim2.new(
-                startPosition.X.Scale, startPosition.X.Offset + delta.X,
-                startPosition.Y.Scale, startPosition.Y.Offset
-            )
-        elseif resizeCorner == "TopRight" then
-            newSize = Vector2.new(
-                math.max(MIN_SIZE.X, startSize.X + delta.X),
-                math.max(MIN_SIZE.Y, startSize.Y - delta.Y)
-            )
-            newPos = UDim2.new(
-                startPosition.X.Scale, startPosition.X.Offset,
-                startPosition.Y.Scale, startPosition.Y.Offset + delta.Y
-            )
-        elseif resizeCorner == "TopLeft" then
-            newSize = Vector2.new(
-                math.max(MIN_SIZE.X, startSize.X - delta.X),
-                math.max(MIN_SIZE.Y, startSize.Y - delta.Y)
-            )
-            newPos = UDim2.new(
-                startPosition.X.Scale, startPosition.X.Offset + delta.X,
-                startPosition.Y.Scale, startPosition.Y.Offset + delta.Y
-            )
-        end
-
-        MainFrame.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
-        MainFrame.Position = newPos
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        resizing = false
-        resizeCorner = nil
-    end
-end)
-
--- Title Bar
+-- ==================== TITLE BAR ====================
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 28)
-TitleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+TitleBar.Size = UDim2.new(1, 0, 0, 34)
+TitleBar.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
 TitleBar.Parent = MainFrame
 
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = TitleBar
+
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -70, 1, 0)
-TitleLabel.Position = UDim2.new(0, 8, 0, 0)
+TitleLabel.Size = UDim2.new(1, -90, 1, 0)
+TitleLabel.Position = UDim2.new(0, 14, 0, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Text = "Player Tools"
-TitleLabel.TextColor3 = Color3.new(1,1,1)
+TitleLabel.TextColor3 = Color3.fromRGB(245, 245, 250)
 TitleLabel.TextScaled = true
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.Parent = TitleBar
 
--- Chrome Controls
+-- Chrome Buttons
 local function CreateChromeButton(text, color, pos)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 18, 0, 18)
+    btn.Size = UDim2.new(0, 20, 0, 20)
     btn.Position = pos
     btn.BackgroundColor3 = color
     btn.Text = text
-    btn.TextColor3 = Color3.new(0,0,0)
+    btn.TextColor3 = Color3.new(1,1,1)
     btn.TextScaled = true
     btn.Font = Enum.Font.GothamBold
     btn.Parent = TitleBar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
     return btn
 end
 
-local CloseBtn = CreateChromeButton("×", Color3.fromRGB(255,70,70), UDim2.new(1, -22, 0, 5))
-local FullBtn  = CreateChromeButton("□", Color3.fromRGB(70,255,70), UDim2.new(1, -44, 0, 5))
-local MinBtn   = CreateChromeButton("—", Color3.fromRGB(255,200,70), UDim2.new(1, -66, 0, 5))
+local CloseBtn = CreateChromeButton("×", Color3.fromRGB(230, 65, 65), UDim2.new(1, -26, 0, 7))
+local FullBtn  = CreateChromeButton("□", Color3.fromRGB(85, 210, 85), UDim2.new(1, -50, 0, 7))
+local MinBtn   = CreateChromeButton("—", Color3.fromRGB(210, 190, 70), UDim2.new(1, -74, 0, 7))
 
 CloseBtn.MouseButton1Click:Connect(function()
     CloseBtn.Active = false
@@ -219,7 +95,7 @@ end)
 
 FullBtn.MouseButton1Click:Connect(function()
     if MainFrame.Size == UDim2.new(1,0,1,0) then
-        MainFrame.Size = UDim2.new(0,220,0,420)
+        MainFrame.Size = UDim2.new(0,250,0,480)
         MainFrame.Position = UDim2.new(0,20,0,20)
     else
         MainFrame.Size = UDim2.new(1,0,1,0)
@@ -237,7 +113,7 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
--- Draggable TitleBar
+-- Draggable
 local dragging = false
 local dragStart, startPos
 TitleBar.InputBegan:Connect(function(input)
@@ -257,14 +133,13 @@ TitleBar.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 
--- ==================== TAB SYSTEM ====================
+-- ==================== TAB BAR ====================
 local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, 0, 0, 28)
-TabBar.Position = UDim2.new(0, 0, 0, 28)
-TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TabBar.Size = UDim2.new(1, 0, 0, 32)
+TabBar.Position = UDim2.new(0, 0, 0, 34)
+TabBar.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
 TabBar.Parent = MainFrame
 
--- Better spacing between tabs
 local TabLayout = Instance.new("UIListLayout")
 TabLayout.FillDirection = Enum.FillDirection.Horizontal
 TabLayout.Padding = UDim.new(0, 2)
@@ -272,14 +147,14 @@ TabLayout.Parent = TabBar
 
 local function CreateTab(name)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.25, -2, 1, 0)   -- 25% width each (with small gap)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.Size = UDim2.new(0.25, -2, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
     btn.Text = name
-    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextColor3 = Color3.fromRGB(200, 200, 205)
     btn.TextScaled = true
     btn.Font = Enum.Font.GothamBold
     btn.Parent = TabBar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     return btn
 end
 
@@ -290,8 +165,8 @@ local UtilityTab  = CreateTab("Utility")
 
 -- Content Container
 local ContentContainer = Instance.new("Frame")
-ContentContainer.Size = UDim2.new(1, -8, 1, -60)
-ContentContainer.Position = UDim2.new(0, 4, 0, 56)
+ContentContainer.Size = UDim2.new(1, -12, 1, -72)
+ContentContainer.Position = UDim2.new(0, 6, 0, 68)
 ContentContainer.BackgroundTransparency = 1
 ContentContainer.Parent = MainFrame
 
@@ -299,13 +174,13 @@ local function CreateContentFrame()
     local frame = Instance.new("ScrollingFrame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 1
-    frame.ScrollBarThickness = 5
-    frame.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+    frame.ScrollBarThickness = 4
+    frame.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
     frame.Visible = false
     frame.Parent = ContentContainer
 
     local list = Instance.new("UIListLayout")
-    list.Padding = UDim.new(0, 6)
+    list.Padding = UDim.new(0, 8)
     list.Parent = frame
     return frame
 end
@@ -316,7 +191,6 @@ local VisualContent   = CreateContentFrame()
 local UtilityContent  = CreateContentFrame()
 
 local CurrentTab = nil
-
 local function ShowTab(contentFrame)
     if CurrentTab then CurrentTab.Visible = false end
     contentFrame.Visible = true
@@ -328,22 +202,44 @@ CameraTab.MouseButton1Click:Connect(function() ShowTab(CameraContent) end)
 VisualTab.MouseButton1Click:Connect(function() ShowTab(VisualContent) end)
 UtilityTab.MouseButton1Click:Connect(function() ShowTab(UtilityContent) end)
 
--- Default tab
 MovementContent.Visible = true
 CurrentTab = MovementContent
 
--- ==================== HELPER ====================
+-- ==================== PREMIUM HELPERS ====================
+
 local function CreateToggle(parent, defaultText)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -10, 0, 28)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.Size = UDim2.new(1, -8, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
     btn.Text = defaultText
-    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextColor3 = Color3.fromRGB(235, 235, 240)
     btn.TextScaled = true
     btn.Font = Enum.Font.GothamBold
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     return btn
+end
+
+local function CreateSlider(parent)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, -8, 0, 26)
+    frame.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 5)
+
+    local knob = Instance.new("Frame", frame)
+    knob.Size = UDim2.new(0, 14, 1, -4)
+    knob.Position = UDim2.new(0, 2, 0, 2)
+    knob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 4)
+
+    local valueLabel = Instance.new("TextLabel", frame)
+    valueLabel.Size = UDim2.new(1, 0, 1, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+    valueLabel.TextScaled = true
+    valueLabel.Font = Enum.Font.GothamBold
+
+    return frame, knob, valueLabel
 end
 
 -- ==================== MOVEMENT TAB ====================
