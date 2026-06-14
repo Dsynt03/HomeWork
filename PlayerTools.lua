@@ -1806,7 +1806,9 @@ SpectateButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== SERVER HOP & REJOIN (Unlimited) ====================
+-- ==================== SERVER HOP & REJOIN (Unlimited - Only When Button Pressed) ====================
+
+local ScriptURL = "https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"
 
 -- Server Hop Button
 local ServerHopButton = CreateToggle(UtilityContent, "SERVER HOP")
@@ -1819,12 +1821,12 @@ ServerHopButton.MouseButton1Click:Connect(function()
     if queue_on_teleport then
         queue_on_teleport([[
             task.wait(5)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+            loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
 
             if queue_on_teleport then
                 queue_on_teleport([[
                     task.wait(5)
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+                    loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
                 ]])
             end
         ]])
@@ -1873,12 +1875,12 @@ RejoinButton.MouseButton1Click:Connect(function()
     if queue_on_teleport then
         queue_on_teleport([[
             task.wait(5)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+            loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
 
             if queue_on_teleport then
                 queue_on_teleport([[
                     task.wait(5)
-                    loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
+                    loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
                 ]])
             end
         ]])
@@ -1894,7 +1896,7 @@ RejoinButton.MouseButton1Click:Connect(function()
         RejoinButton.Text = "REJOIN SERVER"
         RejoinButton.Active = true
     end
-end)
+end)`
 
 -- ==================== ANTI-AFK (Improved) ====================
 local AFKButton = CreateToggle(UtilityContent, "Anti-AFK: OFF")
