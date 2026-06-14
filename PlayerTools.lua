@@ -1262,7 +1262,7 @@ CustomCameraButton.MouseButton1Click:Connect(function()
 end)
 
 -- ==================== VISUAL TAB ====================
--- ==================== ESP (Improved) ====================
+-- ==================== ESP (Outline Only - Premium) ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
 local ESPEnabled = false
 local Highlights = {}
@@ -1277,53 +1277,71 @@ local function CreateESP(player)
     local char = player.Character
     if not char then return end
 
-    -- Highlight
-    local h = Instance.new("Highlight", CoreGui)
+    -- === Outline Only (No Body Fill) ===
+    local h = Instance.new("Highlight")
     h.Adornee = char
-    h.FillTransparency = 0.7
-    h.OutlineColor = Color3.fromRGB(0, 200, 255)
+    h.FillTransparency = 1                    -- No fill at all
+    h.OutlineTransparency = 0.05              -- Very visible outline
+    h.OutlineColor = Color3.fromRGB(0, 230, 255)  -- Bright cyan outline
+    h.Parent = CoreGui
     Highlights[player] = h
 
-    -- Name Tag + Info
-    local bb = Instance.new("BillboardGui", CoreGui)
+    -- === Name Tag (Premium Style) ===
+    local bb = Instance.new("BillboardGui")
     bb.Adornee = char:WaitForChild("Head")
-    bb.Size = UDim2.new(0, 160, 0, 60)
-    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.Size = UDim2.new(0, 180, 0, 72)
+    bb.StudsOffset = Vector3.new(0, 3.8, 0)
     bb.AlwaysOnTop = true
+    bb.Parent = CoreGui
 
+    -- Dark background for readability
+    local bg = Instance.new("Frame", bb)
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    bg.BackgroundTransparency = 0.35
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 6)
+
+    -- Player Name
     local nameLabel = Instance.new("TextLabel", bb)
-    nameLabel.Size = UDim2.new(1, 0, 0, 18)
+    nameLabel.Size = UDim2.new(1, -8, 0, 20)
+    nameLabel.Position = UDim2.new(0, 4, 0, 4)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.new(1,1,1)
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     nameLabel.TextScaled = true
     nameLabel.Font = Enum.Font.GothamBold
 
+    -- Distance
     local distLabel = Instance.new("TextLabel", bb)
     distLabel.Name = "DistanceLabel"
-    distLabel.Size = UDim2.new(1, 0, 0, 14)
-    distLabel.Position = UDim2.new(0, 0, 0, 18)
+    distLabel.Size = UDim2.new(1, -8, 0, 16)
+    distLabel.Position = UDim2.new(0, 4, 0, 24)
     distLabel.BackgroundTransparency = 1
     distLabel.Text = "0 studs"
-    distLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+    distLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
     distLabel.TextScaled = true
     distLabel.Font = Enum.Font.Gotham
 
+    -- Health Bar Background
     local healthBG = Instance.new("Frame", bb)
     healthBG.Name = "HealthBG"
-    healthBG.Size = UDim2.new(1, 0, 0, 8)
-    healthBG.Position = UDim2.new(0, 0, 0, 36)
-    healthBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    Instance.new("UICorner", healthBG).CornerRadius = UDim.new(0, 2)
+    healthBG.Size = UDim2.new(1, -8, 0, 10)
+    healthBG.Position = UDim2.new(0, 4, 0, 44)
+    healthBG.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    Instance.new("UICorner", healthBG).CornerRadius = UDim.new(0, 3)
 
+    -- Health Bar Fill
     local healthFill = Instance.new("Frame", healthBG)
     healthFill.Name = "HealthFill"
     healthFill.Size = UDim2.new(1, 0, 1, 0)
     healthFill.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
-    Instance.new("UICorner", healthFill).CornerRadius = UDim.new(0, 2)
+    Instance.new("UICorner", healthFill).CornerRadius = UDim.new(0, 3)
 
     NameTags[player] = bb
-    ESPData[player] = {DistanceLabel = distLabel, HealthFill = healthFill}
+    ESPData[player] = {
+        DistanceLabel = distLabel,
+        HealthFill = healthFill
+    }
 end
 
 local function RemoveESP(player)
@@ -1342,27 +1360,36 @@ local function UpdateESP()
     if not ESPEnabled then return end
 
     for player, data in pairs(ESPData) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-            local hrp = player.Character.HumanoidRootPart
-            local hum = player.Character.Humanoid
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+            local hrp = char.HumanoidRootPart
+            local hum = char.Humanoid
 
-            -- Distance
+            -- Distance + Color Coding
             if data.DistanceLabel and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local dist = math.floor((hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
                 data.DistanceLabel.Text = dist .. " studs"
+
+                if dist < 50 then
+                    data.DistanceLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+                elseif dist < 150 then
+                    data.DistanceLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
+                else
+                    data.DistanceLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+                end
             end
 
-            -- Health Bar
+            -- Health Bar Coloring
             if data.HealthFill and hum then
-                local percent = hum.Health / hum.MaxHealth
+                local percent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
                 data.HealthFill.Size = UDim2.new(percent, 0, 1, 0)
 
                 if percent > 0.6 then
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
+                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(0, 220, 80)
                 elseif percent > 0.3 then
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 180, 60)
                 else
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
                 end
             end
         end
@@ -1385,13 +1412,16 @@ ESPButton.MouseButton1Click:Connect(function()
         end
     else
         ESPButton.Text = "ESP: OFF"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(45,45,45)
+        ESPButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         RemoveAllESP()
-        if ESPUpdateConnection then ESPUpdateConnection:Disconnect() ESPUpdateConnection = nil end
+        if ESPUpdateConnection then 
+            ESPUpdateConnection:Disconnect() 
+            ESPUpdateConnection = nil 
+        end
     end
 end)
 
--- Handle new players
+-- Auto create ESP for new players
 Players.PlayerAdded:Connect(function(player)
     if ESPEnabled then
         player.CharacterAdded:Connect(function()
@@ -1401,7 +1431,6 @@ Players.PlayerAdded:Connect(function(player)
     end
 end)
 
--- Clean up when player leaves
 Players.PlayerRemoving:Connect(function(player)
     RemoveESP(player)
 end)
