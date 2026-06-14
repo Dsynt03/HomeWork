@@ -11,7 +11,7 @@ local Lighting = game:GetService("Lighting")
 -- ==================== AUTO REQUEUE (Always Reappears) ====================
 if queue_on_teleport then
     queue_on_teleport([[
-        task.wait(15)
+        task.wait(8)
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"))()
     ]])
 end
