@@ -1806,9 +1806,7 @@ SpectateButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== SERVER HOP & REJOIN (Unlimited - Only When Button Pressed) ====================
-
-local ScriptURL = "https://raw.githubusercontent.com/Dsynt03/HomeWork/refs/heads/main/PlayerTools.lua"
+-- ==================== SERVER HOP & REJOIN (Clean - GUI Shows) ====================
 
 -- Server Hop Button
 local ServerHopButton = CreateToggle(UtilityContent, "SERVER HOP")
@@ -1817,20 +1815,6 @@ ServerHopButton.BackgroundColor3 = Color3.fromRGB(200, 100, 60)
 ServerHopButton.MouseButton1Click:Connect(function()
     ServerHopButton.Text = "HOPPING..."
     ServerHopButton.Active = false
-
-    if queue_on_teleport then
-        queue_on_teleport([[
-            task.wait(5)
-            loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
-
-            if queue_on_teleport then
-                queue_on_teleport([[
-                    task.wait(5)
-                    loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
-                ]])
-            end
-        ]])
-    end
 
     local HttpService = game:GetService("HttpService")
     local success, result = pcall(function()
@@ -1872,20 +1856,6 @@ RejoinButton.MouseButton1Click:Connect(function()
     RejoinButton.Text = "REJOINING..."
     RejoinButton.Active = false
 
-    if queue_on_teleport then
-        queue_on_teleport([[
-            task.wait(5)
-            loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
-
-            if queue_on_teleport then
-                queue_on_teleport([[
-                    task.wait(5)
-                    loadstring(game:HttpGet("]] .. ScriptURL .. [["))()
-                ]])
-            end
-        ]])
-    end
-
     local success = pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end)
@@ -1896,7 +1866,7 @@ RejoinButton.MouseButton1Click:Connect(function()
         RejoinButton.Text = "REJOIN SERVER"
         RejoinButton.Active = true
     end
-end)`
+end)
 
 -- ==================== ANTI-AFK (Improved) ====================
 local AFKButton = CreateToggle(UtilityContent, "Anti-AFK: OFF")
