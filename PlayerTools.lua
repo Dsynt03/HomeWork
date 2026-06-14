@@ -1537,36 +1537,61 @@ local initialFBPercent = (FB_Brightness - 0.5) / 4.5
 FBKnob.Position = UDim2.new(initialFBPercent, 0, 0, 0)
 FBVal.Text = string.format("%.1f", FB_Brightness)
 
--- ==================== X-RAY / WALLHACK (Improved) ====================
+-- ==================== X-RAY / WALLHACK (Improved - Low Lag) ====================
 local XRayButton = CreateToggle(VisualContent, "X-Ray: OFF")
+
+-- X-Ray Distance Slider
+local XRaySliderFrame = Instance.new("Frame", VisualContent)
+XRaySliderFrame.Size = UDim2.new(1, -10, 0, 22)
+XRaySliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Instance.new("UICorner", XRaySliderFrame).CornerRadius = UDim.new(0, 4)
+
+local XRayKnob = Instance.new("Frame", XRaySliderFrame)
+XRayKnob.Size = UDim2.new(0, 16, 1, 0)
+XRayKnob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+Instance.new("UICorner", XRayKnob).CornerRadius = UDim.new(0, 4)
+
+local XRayVal = Instance.new("TextLabel", XRaySliderFrame)
+XRayVal.Size = UDim2.new(1, 0, 1, 0)
+XRayVal.BackgroundTransparency = 1
+XRayVal.Text = "150"
+XRayVal.TextColor3 = Color3.new(1, 1, 1)
+XRayVal.TextScaled = true
+XRayVal.Font = Enum.Font.GothamBold
+
 local XRayEnabled = false
+local XRayDistance = 150
 local XRayConnection = nil
 local OriginalTransparency = {}
 
-local function ApplyXRay()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj ~= LocalPlayer.Character then
-            if OriginalTransparency[obj] == nil then
-                OriginalTransparency[obj] = obj.Transparency
+local function ApplyXRayInRadius()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+
+    local playerPos = LocalPlayer.Character.HumanoidRootPart.Position
+    local parts = workspace:GetPartBoundsInRadius(playerPos, XRayDistance)
+
+    for _, part in ipairs(parts) do
+        if part:IsA("BasePart") and part ~= LocalPlayer.Character then
+            if OriginalTransparency[part] == nil then
+                OriginalTransparency[part] = part.Transparency
             end
-            obj.Transparency = 0.8
-            obj.CastShadow = false
-            obj.LocalTransparencyModifier = 0.8
+            part.Transparency = 0.75
+            part.CastShadow = false
         end
     end
 end
 
 local function RemoveXRay()
-    for obj, original in pairs(OriginalTransparency) do
-        if obj and obj.Parent then
-            obj.Transparency = original
-            obj.CastShadow = true
-            obj.LocalTransparencyModifier = 0
+    for part, original in pairs(OriginalTransparency) do
+        if part and part.Parent then
+            part.Transparency = original
+            part.CastShadow = true
         end
     end
     OriginalTransparency = {}
 end
 
+-- X-Ray Toggle
 XRayButton.MouseButton1Click:Connect(function()
     XRayEnabled = not XRayEnabled
 
@@ -1577,13 +1602,10 @@ XRayButton.MouseButton1Click:Connect(function()
         if not XRayConnection then
             XRayConnection = RunService.Heartbeat:Connect(function()
                 if XRayEnabled then
-                    ApplyXRay()
+                    ApplyXRayInRadius()
                 end
             end)
         end
-        
-        ApplyXRay()
-        
     else
         XRayButton.Text = "X-Ray: OFF"
         XRayButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -1592,22 +1614,43 @@ XRayButton.MouseButton1Click:Connect(function()
             XRayConnection:Disconnect()
             XRayConnection = nil
         end
-        
+
         RemoveXRay()
     end
 end)
 
--- Re-apply on new parts (for streaming games)
-workspace.DescendantAdded:Connect(function(obj)
-    if XRayEnabled and obj:IsA("BasePart") and obj ~= LocalPlayer.Character then
-        if OriginalTransparency[obj] == nil then
-            OriginalTransparency[obj] = obj.Transparency
-        end
-        obj.Transparency = 0.8
-        obj.CastShadow = false
-        obj.LocalTransparencyModifier = 0.8
+-- X-Ray Distance Slider
+local draggingXRay = false
+
+XRayKnob.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingXRay = true
     end
 end)
+
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingXRay = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if draggingXRay then
+        local mx = UserInputService:GetMouseLocation().X
+        local sx = XRaySliderFrame.AbsolutePosition.X
+        local sw = XRaySliderFrame.AbsoluteSize.X
+        local p = math.clamp((mx - sx) / sw, 0, 1)
+
+        -- Range: 50 to 500 studs
+        XRayDistance = math.floor(50 + p * 450)
+        XRayKnob.Position = UDim2.new(p, 0, 0, 0)
+        XRayVal.Text = tostring(XRayDistance)
+    end
+end)
+
+-- Set initial slider position (150 studs)
+XRayKnob.Position = UDim2.new(0.22, 0, 0, 0)
+XRayVal.Text = "150"
 
 -- ==================== UTILITY TAB ====================
 -- ==================== POSITION SAVER (Improved) ====================
