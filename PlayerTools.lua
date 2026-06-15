@@ -776,7 +776,16 @@ local function EnableFreeCam()
     FreeCamEnabled = true
     isLooking = false
 
-    OriginalCameraType = camera.CameraType
+    local cam = workspace.CurrentCamera
+
+    -- === Force take full camera control (important when coming from Custom Camera) ===
+    cam.CameraType = Enum.CameraType.Scriptable
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        cam.CameraSubject = nil
+    end
+    task.wait()
+
+    OriginalCameraType = cam.CameraType
     OriginalMouseBehavior = UserInputService.MouseBehavior
 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -785,10 +794,9 @@ local function EnableFreeCam()
     end
 
     UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-    camera.CameraType = Enum.CameraType.Scriptable
-    FreeCamPosition = camera.CFrame.Position
+    FreeCamPosition = cam.CFrame.Position
 
-    local lookVector = camera.CFrame.LookVector
+    local lookVector = cam.CFrame.LookVector
     yaw = math.atan2(lookVector.X, lookVector.Z)
     pitch = math.asin(lookVector.Y)
 
@@ -802,10 +810,10 @@ local function EnableFreeCam()
         if not FreeCamEnabled then return end
 
         local moveDirection = Vector3.new(0,0,0)
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0,1,0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection -= Vector3.new(0,1,0) end
 
@@ -820,7 +828,7 @@ local function EnableFreeCam()
         end
 
         local rotation = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
-        camera.CFrame = CFrame.new(FreeCamPosition) * rotation
+        cam.CFrame = CFrame.new(FreeCamPosition) * rotation
     end)
 end
 
@@ -866,10 +874,30 @@ end)
 FreeCamButton.MouseButton1Click:Connect(function()
     if FreeCamEnabled then
         DisableFreeCam()
+        FreeCamEnabled = false
         FreeCamButton.Text = "FreeCam: OFF"
         FreeCamButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
     else
+        -- === Stronger handoff from Custom Camera ===
+        if CustomCameraEnabled or CustomCameraConnection then
+            if CustomCameraConnection then
+                CustomCameraConnection:Disconnect()
+                CustomCameraConnection = nil
+            end
+            CustomCameraEnabled = false
+            CustomCameraButton.Text = "Custom Camera: OFF"
+            CustomCameraButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
+
+            local cam = workspace.CurrentCamera
+            cam.CameraType = Enum.CameraType.Custom
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                cam.CameraSubject = LocalPlayer.Character.Humanoid
+            end
+            task.wait(0.15)
+        end
+
         EnableFreeCam()
+        FreeCamEnabled = true
         FreeCamButton.Text = "FreeCam: ON"
         FreeCamButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
     end
@@ -1015,25 +1043,40 @@ local function EnableCustomCamera()
 end
 
 local function DisableCustomCamera()
-    if CustomCameraConnection then CustomCameraConnection:Disconnect() CustomCameraConnection = nil end
+    if CustomCameraConnection then 
+        CustomCameraConnection:Disconnect() 
+        CustomCameraConnection = nil 
+    end
+
     TelescopeActive = false
     IsOrbiting = false
+    IsFirstPerson = false
 
     local cam = workspace.CurrentCamera
-    cam.CameraType = OriginalCameraType or Enum.CameraType.Custom
+
+    -- Force reset camera type and subject
+    cam.CameraType = Enum.CameraType.Custom
     cam.FieldOfView = OriginalFOV or 70
 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        cam.CameraSubject = OriginalCameraSubject or LocalPlayer.Character.Humanoid
+        cam.CameraSubject = LocalPlayer.Character.Humanoid
     end
+
     if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
     end
+
     if LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.LocalTransparencyModifier = 0 end
+            if part:IsA("BasePart") then 
+                part.LocalTransparencyModifier = 0 
+            end
         end
     end
+
+    -- Reset custom camera position tracking
+    CurrentCamPosition = Vector3.new()
+    CurrentLookAt = Vector3.new()
 end
 
 UserInputService.InputChanged:Connect(function(input)
@@ -1081,15 +1124,25 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 CustomCameraButton.MouseButton1Click:Connect(function()
-    CustomCameraEnabled = not CustomCameraEnabled
     if CustomCameraEnabled then
-        CustomCameraButton.Text = "Custom Camera: ON"
-        CustomCameraButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        EnableCustomCamera()
-    else
+        -- Turn OFF: Call Disable FIRST, then set flag to false
+        DisableCustomCamera()
+        CustomCameraEnabled = false
         CustomCameraButton.Text = "Custom Camera: OFF"
         CustomCameraButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
-        DisableCustomCamera()
+    else
+        -- Turn ON
+        if FreeCamEnabled then
+            DisableFreeCam()
+            FreeCamEnabled = false
+            FreeCamButton.Text = "FreeCam: OFF"
+            FreeCamButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
+        end
+
+        EnableCustomCamera()
+        CustomCameraEnabled = true
+        CustomCameraButton.Text = "Custom Camera: ON"
+        CustomCameraButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
     end
 end)
 
