@@ -1234,12 +1234,13 @@ local MM2Colors = {
     Innocent = Color3.fromRGB(50, 255, 50),
 }
 
--- ==================== ESP + NAME TAGS (Robust Version) ====================
+-- ==================== ESP + NAME TAGS (Stable Version for MM2) ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
 local ESPEnabled = false
 local Highlights = {}
 local NameTags = {}
 local ESPUpdateConnection = nil
+local CharacterConnections = {} -- Stores connections so we can disconnect them later
 
 local function CreateNameTag(player, char)
     if NameTags[player] then return end
@@ -1306,18 +1307,17 @@ local function RemoveAllESP()
     NameTags = {}
 end
 
--- This now actively loops and catches everyone (including respawns & new players)
+-- Main loop that keeps ESP active
 local function UpdateESP()
     if not ESPEnabled then return end
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            -- If player doesn't have ESP yet, create it
             if not Highlights[player] then
                 CreateESP(player)
             end
 
-            -- Update highlight color if role changed (MM2)
+            -- Update color for MM2 roles
             if Highlights[player] and player.Character then
                 local role = GetMM2Role(player)
                 local color = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
@@ -1330,6 +1330,7 @@ end
 -- Toggle ESP
 ESPButton.MouseButton1Click:Connect(function()
     ESPEnabled = not ESPEnabled
+
     if ESPEnabled then
         ESPButton.Text = "ESP: ON"
         ESPButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
@@ -1341,9 +1342,28 @@ ESPButton.MouseButton1Click:Connect(function()
             end
         end
 
+        -- Connect to CharacterAdded and CharacterRemoving for every player
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and not CharacterConnections[player] then
+                CharacterConnections[player] = {}
+
+                CharacterConnections[player].Added = player.CharacterAdded:Connect(function(char)
+                    if ESPEnabled then
+                        task.wait(0.6) -- Wait for character to fully load
+                        CreateESP(player)
+                    end
+                end)
+
+                CharacterConnections[player].Removing = player.CharacterRemoving:Connect(function()
+                    RemoveESP(player)
+                end)
+            end
+        end
+
         if not ESPUpdateConnection then
             ESPUpdateConnection = RunService.Heartbeat:Connect(UpdateESP)
         end
+
     else
         ESPButton.Text = "ESP: OFF"
         ESPButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
@@ -1355,11 +1375,40 @@ ESPButton.MouseButton1Click:Connect(function()
             end
         end
 
+        -- Disconnect all character listeners
+        for _, connections in pairs(CharacterConnections) do
+            if connections.Added then connections.Added:Disconnect() end
+            if connections.Removing then connections.Removing:Disconnect() end
+        end
+        CharacterConnections = {}
+
         RemoveAllESP()
+
         if ESPUpdateConnection then
             ESPUpdateConnection:Disconnect()
             ESPUpdateConnection = nil
         end
+    end
+end)
+
+-- Handle new players joining while ESP is already on
+Players.PlayerAdded:Connect(function(player)
+    if ESPEnabled then
+        CharacterConnections[player] = {}
+
+        CharacterConnections[player].Added = player.CharacterAdded:Connect(function(char)
+            if ESPEnabled then
+                task.wait(0.6)
+                CreateESP(player)
+            end
+        end)
+
+        CharacterConnections[player].Removing = player.CharacterRemoving:Connect(function()
+            RemoveESP(player)
+        end)
+
+        task.wait(0.6)
+        CreateESP(player)
     end
 end)
 
