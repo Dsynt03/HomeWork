@@ -8,6 +8,71 @@ local VirtualUser = game:GetService("VirtualUser")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local Lighting = game:GetService("Lighting")
 
+-- ==================== STATE VARIABLES (Declared Early) ====================
+local WS_Enabled = false
+local WS_Value = 16
+local WS_Conn = nil
+
+local JumpPowerEnabled = false
+local JumpMultiplier = 1
+local JumpConnection = nil
+
+local InfJumpEnabled = false
+local lastJumpTime = 0
+
+local AirGravityEnabled = false
+local AirGravityMultiplier = 0.3
+local AirGravityConnection = nil
+local OriginalGravity = workspace.Gravity
+
+local NoClipEnabled = false
+local NoClipConn = nil
+
+local FlyEnabled = false
+local FlyMultiplier = 1
+local FlyConn = nil
+
+local CTEnabled = false
+
+local FreeCamEnabled = false
+local FreeCamConnection = nil
+local OriginalWalkSpeed = 16
+
+local CustomCameraEnabled = false
+local CustomCameraConnection = nil
+
+local ESPEnabled = false
+local Highlights = {}
+local NameTags = {}
+local ESPUpdateConnection = nil
+
+local FBEnabled = false
+local FBOriginal = {}
+local FB_Brightness = 2.0
+
+local XRayEnabled = false
+local XRayDistance = 150
+local XRayConnection = nil
+local OriginalTransparency = {}
+local CurrentAffected = {}
+
+local AFKEnabled = false
+local AFKConn = nil
+
+local PickupEnabled = false
+local PickupConnection = nil
+
+local AutoClickerEnabled = false
+local ClickerHotkey = Enum.KeyCode.KeypadMultiply
+local ClickerLoop = nil
+local ClickerHotkeyConnection = nil
+
+-- ==================== RESET FUNCTION (Stays at the bottom as you want) ====================
+-- (Your full ResetAllFeatures function stays exactly where it was at the bottom)
+
+-- The rest of your script continues normally from here...
+-- (GUI creation, tabs, Movement, Camera, Visual with Name ESP, Utility, Auto Clicker, etc.)
+
 -- ==================== AUTO REQUEUE (Always Reappears) ====================
 if queue_on_teleport then
     queue_on_teleport([[
@@ -352,9 +417,9 @@ end
 local WalkButton = CreateToggle(MovementContent, "WalkSpeed: OFF")
 local WalkSliderFrame, WalkKnob, WalkVal = CreateSlider(MovementContent)
 
-local WS_Enabled = false
-local WS_Value = 16
-local WS_Conn = nil
+WS_Enabled = false
+WS_Value = 16
+WS_Conn = nil
 
 local function ApplyWalkSpeed()
     local char = LocalPlayer.Character
@@ -436,9 +501,9 @@ WalkVal.Text = "16"
 local JumpPowerButton = CreateToggle(MovementContent, "Jump Power: OFF")
 local JumpSliderFrame, JumpKnob, JumpValueLabel = CreateSlider(MovementContent)
 
-local JumpPowerEnabled = false
-local JumpMultiplier = 1
-local JumpConnection = nil
+JumpPowerEnabled = false
+JumpMultiplier = 1
+JumpConnection = nil
 
 local function ApplyJump()
     local char = LocalPlayer.Character
@@ -545,10 +610,10 @@ end)
 local AirGravityButton = CreateToggle(MovementContent, "Air Gravity: OFF")
 local AirGravitySliderFrame, AirGravityKnob, AirGravityVal = CreateSlider(MovementContent)
 
-local AirGravityEnabled = false
-local AirGravityMultiplier = 0.3
-local OriginalGravity = workspace.Gravity
-local AirGravityConnection = nil
+AirGravityEnabled = false
+AirGravityMultiplier = 0.3
+OriginalGravity = workspace.Gravity
+AirGravityConnection = nil
 
 local function ApplyAirGravity()
     if not LocalPlayer.Character then return end
@@ -608,8 +673,8 @@ AirGravityVal.Text = "0.30x"
 
 -- No Clip
 local NoClipButton = CreateToggle(MovementContent, "No Clip: OFF")
-local NoClipEnabled = false
-local NoClipConn = nil
+NoClipEnabled = false
+NoClipConn = nil
 
 local function EnableNoClip()
     if NoClipConn then return end
@@ -648,10 +713,10 @@ end)
 local FlyButton = CreateToggle(MovementContent, "Fly: OFF")
 local FlySliderFrame, FlyKnob, FlyVal = CreateSlider(MovementContent)
 
-local FlyEnabled = false
-local FlyMultiplier = 1
-local FlyBaseSpeed = 50
-local FlyConn = nil
+FlyEnabled = false
+FlyMultiplier = 1
+FlyBaseSpeed = 50
+FlyConn = nil
 
 FlyButton.MouseButton1Click:Connect(function()
     FlyEnabled = not FlyEnabled
@@ -757,11 +822,11 @@ end)
 local FreeCamButton = CreateToggle(CameraContent, "FreeCam: OFF")
 local FreeCamSliderFrame, FreeCamKnob, FreeCamVal = CreateSlider(CameraContent)
 
-local FreeCamEnabled = false
-local FreeCamConnection = nil
-local OriginalCameraType = nil
-local OriginalWalkSpeed = 16
-local OriginalMouseBehavior = nil
+FreeCamEnabled = false
+FreeCamConnection = nil
+OriginalCameraType = nil
+OriginalWalkSpeed = 16
+OriginalMouseBehavior = nil
 local camera = workspace.CurrentCamera
 local yaw = 0
 local pitch = 0
@@ -934,24 +999,24 @@ FreeCamVal.Text = "1x"
 
 -- Custom Camera
 local CustomCameraButton = CreateToggle(CameraContent, "Custom Camera: OFF")
-local CustomCameraEnabled = false
-local CustomCameraConnection = nil
-local TelescopeActive = false
+CustomCameraEnabled = false
+CustomCameraConnection = nil
+TelescopeActive = false
 
-local Yaw = 0
-local Pitch = 0
-local CurrentZoom = 1.9
-local TargetZoom = 1.9
-local MinZoom = 0.5
-local MaxZoom = math.huge
-local IsOrbiting = false
-local IsFirstPerson = false
+Yaw = 0
+Pitch = 0
+CurrentZoom = 1.9
+TargetZoom = 1.9
+MinZoom = 0.5
+MaxZoom = math.huge
+IsOrbiting = false
+IsFirstPerson = false
 
-local OriginalCameraType = nil
-local OriginalCameraSubject = nil
-local OriginalFOV = 70
-local CurrentCamPosition = Vector3.new()
-local CurrentLookAt = Vector3.new()
+OriginalCameraType = nil
+OriginalCameraSubject = nil
+OriginalFOV = 70
+CurrentCamPosition = Vector3.new()
+CurrentLookAt = Vector3.new()
 
 local function GetFocusPoint()
     local character = LocalPlayer.Character
@@ -1169,12 +1234,40 @@ local MM2Colors = {
     Innocent = Color3.fromRGB(50, 255, 50),
 }
 
--- ==================== ESP + NAME ESP ====================
+-- ==================== ESP + NAME TAGS ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
-local ESPEnabled = false
-local Highlights = {}
-local NameTags = {}
-local ESPUpdateConnection = nil
+ESPEnabled = false
+Highlights = {}
+NameTags = {}
+ESPUpdateConnection = nil
+
+local function CreateNameTag(player, char)
+    if NameTags[player] then return end
+    if not char or not char:FindFirstChild("Head") then return end
+
+    local head = char.Head
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "NameTag"
+    billboard.Adornee = head
+    billboard.Size = UDim2.new(0, 200, 0, 20)
+    billboard.StudsOffset = Vector3.new(0, 2.3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = CoreGui
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.TextStrokeTransparency = 0.4
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.Font = Enum.Font.SourceSans
+    nameLabel.TextScaled = true
+    nameLabel.Parent = billboard
+
+    NameTags[player] = billboard
+end
 
 local function CreateESP(player)
     if player == LocalPlayer then return end
@@ -1183,10 +1276,10 @@ local function CreateESP(player)
     local char = player.Character
     if not char then return end
 
+    -- Highlight
     local role = GetMM2Role(player)
     local outlineColor = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
 
-    -- Highlight ESP
     local h = Instance.new("Highlight")
     h.Adornee = char
     h.FillTransparency = 1
@@ -1195,30 +1288,8 @@ local function CreateESP(player)
     h.Parent = CoreGui
     Highlights[player] = h
 
-    -- Name ESP (BillboardGui)
-    local head = char:FindFirstChild("Head")
-    if head then
-        local billboard = Instance.new("BillboardGui")
-        billboard.Adornee = head
-        billboard.Size = UDim2.new(0, 200, 0, 40)
-        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-        billboard.AlwaysOnTop = true
-        billboard.MaxDistance = math.huge
-        billboard.Parent = CoreGui
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, 0, 1, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = player.Name
-        nameLabel.TextColor3 = Color3.new(1, 1, 1)
-        nameLabel.TextStrokeTransparency = 0.5
-        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        nameLabel.Font = Enum.Font.SourceSans
-        nameLabel.TextScaled = true
-        nameLabel.Parent = billboard
-
-        NameTags[player] = billboard
-    end
+    -- Name Tag
+    CreateNameTag(player, char)
 end
 
 local function RemoveESP(player)
@@ -1234,8 +1305,9 @@ end
 
 local function RemoveAllESP()
     for _, h in pairs(Highlights) do if h then h:Destroy() end end
-    for _, tag in pairs(NameTags) do if tag then tag:Destroy() end end
     Highlights = {}
+
+    for _, tag in pairs(NameTags) do if tag then tag:Destroy() end end
     NameTags = {}
 end
 
@@ -1251,30 +1323,61 @@ local function UpdateESP()
     end
 end
 
+-- Toggle ESP
 ESPButton.MouseButton1Click:Connect(function()
     ESPEnabled = not ESPEnabled
+
     if ESPEnabled then
         ESPButton.Text = "ESP: ON"
         ESPButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-        for _, p in ipairs(Players:GetPlayers()) do CreateESP(p) end
+
+        -- Hide default Roblox name tags (modern way)
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            end
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do 
+            CreateESP(p) 
+        end
+
         if not ESPUpdateConnection then
             ESPUpdateConnection = RunService.Heartbeat:Connect(UpdateESP)
         end
+
     else
         ESPButton.Text = "ESP: OFF"
         ESPButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
+
+        -- Restore default Roblox name tags
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+            end
+        end
+
         RemoveAllESP()
-        if ESPUpdateConnection then ESPUpdateConnection:Disconnect() ESPUpdateConnection = nil end
+        if ESPUpdateConnection then 
+            ESPUpdateConnection:Disconnect() 
+            ESPUpdateConnection = nil 
+        end
     end
 end)
 
+-- Player handling
 Players.PlayerAdded:Connect(function(player)
-    if ESPEnabled then
-        player.CharacterAdded:Connect(function()
+    player.CharacterAdded:Connect(function(char)
+        if ESPEnabled then
             task.wait(0.6)
-            if ESPEnabled then CreateESP(player) end
-        end)
-    end
+            if char:FindFirstChild("Humanoid") then
+                char.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            end
+            if ESPEnabled then 
+                CreateESP(player) 
+            end
+        end
+    end)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
@@ -1285,9 +1388,9 @@ end)
 local FBButton = CreateToggle(VisualContent, "Fullbright: OFF")
 local FBSliderFrame, FBKnob, FBVal = CreateSlider(VisualContent)
 
-local FBEnabled = false
-local FBOriginal = {}
-local FB_Brightness = 2.0
+FBEnabled = false
+FBOriginal = {}
+FB_Brightness = 2.0
 local draggingFB = false
 
 -- Fullbright Slider
@@ -1363,12 +1466,11 @@ FBVal.Text = string.format("%.1f", FB_Brightness)
 local XRayButton = CreateToggle(VisualContent, "X-Ray: OFF")
 local XRaySliderFrame, XRayKnob, XRayVal = CreateSlider(VisualContent)
 
-local XRayEnabled = false
-local XRayDistance = 150
-local XRayConnection = nil
-
-local OriginalTransparency = {}
-local CurrentAffected = {}
+XRayEnabled = false
+XRayDistance = 150
+XRayConnection = nil
+OriginalTransparency = {}
+CurrentAffected = {}
 
 local function RemoveXRay()
     for part in pairs(CurrentAffected) do
@@ -1822,11 +1924,11 @@ SetHotkeyButton.TextScaled = true
 SetHotkeyButton.Font = Enum.Font.GothamBold
 Instance.new("UICorner", SetHotkeyButton).CornerRadius = UDim.new(0, 5)
 
-local AutoClickerEnabled = false
-local ClickerHotkey = Enum.KeyCode.KeypadMultiply
-local ClickerLoop = nil
-local IgnoreNextHotkey = false
-local ClickerHotkeyConnection = nil   -- NEW: Store the connection so we can disconnect it later
+AutoClickerEnabled = false
+ClickerHotkey = Enum.KeyCode.KeypadMultiply
+ClickerLoop = nil
+IgnoreNextHotkey = false
+ClickerHotkeyConnection = nil   -- NEW: Store the connection so we can disconnect it later
 
 local function StopClicker()
     AutoClickerEnabled = false
