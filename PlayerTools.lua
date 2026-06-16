@@ -17,7 +17,6 @@ if queue_on_teleport then
 end
 
 -- ==================== DESTROY OLD GUI (Critical for queue_on_teleport) ====================
-local CoreGui = game:GetService("CoreGui")
 if CoreGui:FindFirstChild("PlayerToolsGUI") then
     CoreGui.PlayerToolsGUI:Destroy()
     task.wait(0.2)
@@ -1165,14 +1164,16 @@ local function GetMM2Role(player)
 end
 
 local MM2Colors = {
-    Murderer = Color3.fromRGB(255, 50, 50),   -- Red
-    Sheriff  = Color3.fromRGB(30, 144, 255),  -- Blue
+    Murderer = Color3.fromRGB(255, 50, 50),
+    Sheriff  = Color3.fromRGB(30, 144, 255),
+    Innocent = Color3.fromRGB(50, 255, 50),
 }
 
--- ==================== ESP ====================
+-- ==================== ESP + NAME ESP ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
 local ESPEnabled = false
 local Highlights = {}
+local NameTags = {}
 local ESPUpdateConnection = nil
 
 local function CreateESP(player)
@@ -1183,12 +1184,9 @@ local function CreateESP(player)
     if not char then return end
 
     local role = GetMM2Role(player)
+    local outlineColor = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
 
-    -- In MM2: Only show Murderer & Sheriff
-    if IsMM2 and role == "Innocent" then return end
-
-    local outlineColor = IsMM2 and MM2Colors[role] or Color3.fromRGB(50, 255, 50)
-
+    -- Highlight ESP
     local h = Instance.new("Highlight")
     h.Adornee = char
     h.FillTransparency = 1
@@ -1196,6 +1194,31 @@ local function CreateESP(player)
     h.OutlineColor = outlineColor
     h.Parent = CoreGui
     Highlights[player] = h
+
+    -- Name ESP (BillboardGui)
+    local head = char:FindFirstChild("Head")
+    if head then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Adornee = head
+        billboard.Size = UDim2.new(0, 200, 0, 40)
+        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = math.huge
+        billboard.Parent = CoreGui
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = player.Name
+        nameLabel.TextColor3 = Color3.new(1, 1, 1)
+        nameLabel.TextStrokeTransparency = 0.5
+        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        nameLabel.Font = Enum.Font.SourceSans
+        nameLabel.TextScaled = true
+        nameLabel.Parent = billboard
+
+        NameTags[player] = billboard
+    end
 end
 
 local function RemoveESP(player)
@@ -1203,11 +1226,17 @@ local function RemoveESP(player)
         Highlights[player]:Destroy()
         Highlights[player] = nil
     end
+    if NameTags[player] then
+        NameTags[player]:Destroy()
+        NameTags[player] = nil
+    end
 end
 
 local function RemoveAllESP()
     for _, h in pairs(Highlights) do if h then h:Destroy() end end
+    for _, tag in pairs(NameTags) do if tag then tag:Destroy() end end
     Highlights = {}
+    NameTags = {}
 end
 
 local function UpdateESP()
@@ -1216,12 +1245,8 @@ local function UpdateESP()
     for player, highlight in pairs(Highlights) do
         if player.Character and highlight then
             local role = GetMM2Role(player)
-
-            if IsMM2 and role == "Innocent" then
-                RemoveESP(player)
-            elseif IsMM2 then
-                highlight.OutlineColor = MM2Colors[role]
-            end
+            local color = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
+            highlight.OutlineColor = color
         end
     end
 end
