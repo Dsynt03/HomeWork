@@ -1234,22 +1234,20 @@ local MM2Colors = {
     Innocent = Color3.fromRGB(50, 255, 50),
 }
 
--- ==================== ESP + NAME TAGS ====================
+-- ==================== ESP + NAME TAGS (Robust Version) ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
-ESPEnabled = false
-Highlights = {}
-NameTags = {}
-ESPUpdateConnection = nil
+local ESPEnabled = false
+local Highlights = {}
+local NameTags = {}
+local ESPUpdateConnection = nil
 
 local function CreateNameTag(player, char)
     if NameTags[player] then return end
     if not char or not char:FindFirstChild("Head") then return end
 
-    local head = char.Head
-
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "NameTag"
-    billboard.Adornee = head
+    billboard.Adornee = char.Head
     billboard.Size = UDim2.new(0, 200, 0, 20)
     billboard.StudsOffset = Vector3.new(0, 2.3, 0)
     billboard.AlwaysOnTop = true
@@ -1276,7 +1274,6 @@ local function CreateESP(player)
     local char = player.Character
     if not char then return end
 
-    -- Highlight
     local role = GetMM2Role(player)
     local outlineColor = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
 
@@ -1288,7 +1285,6 @@ local function CreateESP(player)
     h.Parent = CoreGui
     Highlights[player] = h
 
-    -- Name Tag
     CreateNameTag(player, char)
 end
 
@@ -1306,19 +1302,27 @@ end
 local function RemoveAllESP()
     for _, h in pairs(Highlights) do if h then h:Destroy() end end
     Highlights = {}
-
     for _, tag in pairs(NameTags) do if tag then tag:Destroy() end end
     NameTags = {}
 end
 
+-- This now actively loops and catches everyone (including respawns & new players)
 local function UpdateESP()
     if not ESPEnabled then return end
 
-    for player, highlight in pairs(Highlights) do
-        if player.Character and highlight then
-            local role = GetMM2Role(player)
-            local color = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
-            highlight.OutlineColor = color
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            -- If player doesn't have ESP yet, create it
+            if not Highlights[player] then
+                CreateESP(player)
+            end
+
+            -- Update highlight color if role changed (MM2)
+            if Highlights[player] and player.Character then
+                local role = GetMM2Role(player)
+                local color = MM2Colors[role] or Color3.fromRGB(50, 255, 50)
+                Highlights[player].OutlineColor = color
+            end
         end
     end
 end
@@ -1326,31 +1330,25 @@ end
 -- Toggle ESP
 ESPButton.MouseButton1Click:Connect(function()
     ESPEnabled = not ESPEnabled
-
     if ESPEnabled then
         ESPButton.Text = "ESP: ON"
         ESPButton.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
 
-        -- Hide default Roblox name tags (modern way)
+        -- Hide default Roblox names
         for _, player in ipairs(Players:GetPlayers()) do
             if player.Character and player.Character:FindFirstChild("Humanoid") then
                 player.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
             end
         end
 
-        for _, p in ipairs(Players:GetPlayers()) do 
-            CreateESP(p) 
-        end
-
         if not ESPUpdateConnection then
             ESPUpdateConnection = RunService.Heartbeat:Connect(UpdateESP)
         end
-
     else
         ESPButton.Text = "ESP: OFF"
         ESPButton.BackgroundColor3 = Color3.fromRGB(32, 32, 37)
 
-        -- Restore default Roblox name tags
+        -- Restore default Roblox names
         for _, player in ipairs(Players:GetPlayers()) do
             if player.Character and player.Character:FindFirstChild("Humanoid") then
                 player.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
@@ -1358,30 +1356,11 @@ ESPButton.MouseButton1Click:Connect(function()
         end
 
         RemoveAllESP()
-        if ESPUpdateConnection then 
-            ESPUpdateConnection:Disconnect() 
-            ESPUpdateConnection = nil 
+        if ESPUpdateConnection then
+            ESPUpdateConnection:Disconnect()
+            ESPUpdateConnection = nil
         end
     end
-end)
-
--- Player handling
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(char)
-        if ESPEnabled then
-            task.wait(0.6)
-            if char:FindFirstChild("Humanoid") then
-                char.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            end
-            if ESPEnabled then 
-                CreateESP(player) 
-            end
-        end
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    RemoveESP(player)
 end)
 
 -- Fullbright
