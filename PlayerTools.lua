@@ -1148,12 +1148,31 @@ end)
 
 -- ==================== VISUAL TAB ====================
 
--- ESP (Already Premium - Kept as is)
+-- ==================== MM2 ROLE DETECTION ====================
+local IsMM2 = (game.PlaceId == 142823291)
+
+local function GetMM2Role(player)
+    if not IsMM2 or not player.Character then return "Normal" end
+
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        if backpack:FindFirstChild("Knife") then return "Murderer" end
+        if backpack:FindFirstChild("Gun") or backpack:FindFirstChild("Revolver") then return "Sheriff" end
+    end
+    if player.Character:FindFirstChild("Knife") then return "Murderer" end
+    if player.Character:FindFirstChild("Gun") or player.Character:FindFirstChild("Revolver") then return "Sheriff" end
+    return "Innocent"
+end
+
+local MM2Colors = {
+    Murderer = Color3.fromRGB(255, 50, 50),   -- Red
+    Sheriff  = Color3.fromRGB(30, 144, 255),  -- Blue
+}
+
+-- ==================== ESP ====================
 local ESPButton = CreateToggle(VisualContent, "ESP: OFF")
 local ESPEnabled = false
 local Highlights = {}
-local NameTags = {}
-local ESPData = {}
 local ESPUpdateConnection = nil
 
 local function CreateESP(player)
@@ -1163,111 +1182,45 @@ local function CreateESP(player)
     local char = player.Character
     if not char then return end
 
+    local role = GetMM2Role(player)
+
+    -- In MM2: Only show Murderer & Sheriff
+    if IsMM2 and role == "Innocent" then return end
+
+    local outlineColor = IsMM2 and MM2Colors[role] or Color3.fromRGB(50, 255, 50)
+
     local h = Instance.new("Highlight")
     h.Adornee = char
     h.FillTransparency = 1
-    h.OutlineTransparency = 0.05
-    h.OutlineColor = Color3.fromRGB(0, 230, 255)
+    h.OutlineTransparency = 0.1
+    h.OutlineColor = outlineColor
     h.Parent = CoreGui
     Highlights[player] = h
-
-    local bb = Instance.new("BillboardGui")
-    bb.Adornee = char:WaitForChild("Head")
-    bb.Size = UDim2.new(0, 180, 0, 72)
-    bb.StudsOffset = Vector3.new(0, 3.8, 0)
-    bb.AlwaysOnTop = true
-    bb.Parent = CoreGui
-
-    local bg = Instance.new("Frame", bb)
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    bg.BackgroundTransparency = 0.35
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 6)
-
-    local nameLabel = Instance.new("TextLabel", bb)
-    nameLabel.Size = UDim2.new(1, -8, 0, 20)
-    nameLabel.Position = UDim2.new(0, 4, 0, 4)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextScaled = true
-    nameLabel.Font = Enum.Font.GothamBold
-
-    local distLabel = Instance.new("TextLabel", bb)
-    distLabel.Name = "DistanceLabel"
-    distLabel.Size = UDim2.new(1, -8, 0, 16)
-    distLabel.Position = UDim2.new(0, 4, 0, 24)
-    distLabel.BackgroundTransparency = 1
-    distLabel.Text = "0 studs"
-    distLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    distLabel.TextScaled = true
-    distLabel.Font = Enum.Font.Gotham
-
-    local healthBG = Instance.new("Frame", bb)
-    healthBG.Name = "HealthBG"
-    healthBG.Size = UDim2.new(1, -8, 0, 10)
-    healthBG.Position = UDim2.new(0, 4, 0, 44)
-    healthBG.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    Instance.new("UICorner", healthBG).CornerRadius = UDim.new(0, 3)
-
-    local healthFill = Instance.new("Frame", healthBG)
-    healthFill.Name = "HealthFill"
-    healthFill.Size = UDim2.new(1, 0, 1, 0)
-    healthFill.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
-    Instance.new("UICorner", healthFill).CornerRadius = UDim.new(0, 3)
-
-    NameTags[player] = bb
-    ESPData[player] = {
-        DistanceLabel = distLabel,
-        HealthFill = healthFill
-    }
 end
 
 local function RemoveESP(player)
-    if Highlights[player] then Highlights[player]:Destroy() Highlights[player] = nil end
-    if NameTags[player] then NameTags[player]:Destroy() NameTags[player] = nil end
-    ESPData[player] = nil
+    if Highlights[player] then
+        Highlights[player]:Destroy()
+        Highlights[player] = nil
+    end
 end
 
 local function RemoveAllESP()
     for _, h in pairs(Highlights) do if h then h:Destroy() end end
-    for _, bb in pairs(NameTags) do if bb then bb:Destroy() end end
-    Highlights, NameTags, ESPData = {}, {}, {}
+    Highlights = {}
 end
 
 local function UpdateESP()
     if not ESPEnabled then return end
 
-    for player, data in pairs(ESPData) do
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
-            local hrp = char.HumanoidRootPart
-            local hum = char.Humanoid
+    for player, highlight in pairs(Highlights) do
+        if player.Character and highlight then
+            local role = GetMM2Role(player)
 
-            if data.DistanceLabel and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local dist = math.floor((hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
-                data.DistanceLabel.Text = dist .. " studs"
-
-                if dist < 50 then
-                    data.DistanceLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-                elseif dist < 150 then
-                    data.DistanceLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
-                else
-                    data.DistanceLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-                end
-            end
-
-            if data.HealthFill and hum then
-                local percent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                data.HealthFill.Size = UDim2.new(percent, 0, 1, 0)
-
-                if percent > 0.6 then
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(0, 220, 80)
-                elseif percent > 0.3 then
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 180, 60)
-                else
-                    data.HealthFill.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
-                end
+            if IsMM2 and role == "Innocent" then
+                RemoveESP(player)
+            elseif IsMM2 then
+                highlight.OutlineColor = MM2Colors[role]
             end
         end
     end
